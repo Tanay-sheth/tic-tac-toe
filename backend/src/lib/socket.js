@@ -1,4 +1,3 @@
-// ✅ FINAL FIXED SERVER CODE
 import { Server } from "socket.io";
 import http from "http";
 import express from "express";
@@ -17,11 +16,40 @@ const io = new Server(server, {
 const roomPlayers = new Map(); // roomCode => [player1, player2]
 const roomReadyCount = new Map(); // roomCode => number of players ready
 
+// ✅ Check winner helper
+const checkWinner = (board) => {
+  const lines = [
+    [0, 1, 2],
+    [3, 4, 5],
+    [6, 7, 8],
+    [0, 3, 6],
+    [1, 4, 7],
+    [2, 5, 8],
+    [0, 4, 8],
+    [2, 4, 6],
+  ];
+  for (const [a, b, c] of lines) {
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+      return board[a];
+    }
+  }
+  return board.every((cell) => cell !== null) ? "draw" : null;
+};
+
 io.on("connection", (socket) => {
   console.log("✅ A user connected:", socket.id);
 
   socket.on("disconnect", () => {
     console.log("❌ User disconnected:", socket.id);
+    for (const [roomCode, players] of roomPlayers.entries()) {
+      const index = players.findIndex((p) => p.socketId === socket.id);
+      if (index !== -1) {
+        players.splice(index, 1);
+        roomPlayers.set(roomCode, players);
+        socket.to(roomCode).emit("opponentLeft");
+        break;
+      }
+    }
   });
 
   socket.on("joinRoom", ({ roomCode, userId, userName }) => {
@@ -83,9 +111,44 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("makeMove", ({ roomCode, index, symbol }) => {
+  socket.on("makeMove", ({ roomCode, index, symbol, board }) => {
     console.log("📩 Move received:", roomCode, index, symbol);
+
+    // Send move to opponent
     socket.to(roomCode).emit("opponentMove", { index, symbol });
+
+    // Check winner
+    const winner = checkWinner(board);
+    if (winner) {
+      io.to(roomCode).emit("gameOver", { winner });
+    }
+  });
+
+  socket.on("restartGame", ({ roomCode }) => {
+    console.log("🔁 Restarting game for room:", roomCode);
+    const players = roomPlayers.get(roomCode);
+    if (players?.length === 2) {
+      io.to(players[0].socketId).emit("gameStart", {
+        yourSymbol: "X",
+        yourName: players[0].userName,
+        opponentName: players[1].userName,
+        opponentId: players[1].userId,
+        isFirstTurn: true,
+        roomCode,
+      });
+
+      io.to(players[1].socketId).emit("gameStart", {
+        yourSymbol: "O",
+        yourName: players[1].userName,
+        opponentName: players[0].userName,
+        opponentId: players[0].userId,
+        isFirstTurn: false,
+        roomCode,
+      });
+    }
+  });
+  socket.on("leaveGame", ({ roomCode }) => {
+    io.to(roomCode).emit("playerLeft");
   });
 });
 
