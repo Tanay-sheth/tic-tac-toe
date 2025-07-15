@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
+import { axiosInstance } from "../lib/axios";
 
 const GamePage = () => {
-  const { socket } = useAuthStore();
+  const { socket, authUser } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
 
-  if (!location.state || !socket) return <p>Waiting for game data...</p>;
+  if (!location.state || !socket || !authUser)
+    return <p>Waiting for game data...</p>;
 
   const {
     yourName,
@@ -24,7 +26,6 @@ const GamePage = () => {
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState(null);
 
-  // Check win/draw on local side (optional)
   const checkLocalWinner = (newBoard) => {
     const lines = [
       [0, 1, 2],
@@ -66,7 +67,7 @@ const GamePage = () => {
       setStatus("Your turn");
     };
 
-    const handleGameOver = ({ winner }) => {
+    const handleGameOver = async ({ winner }) => {
       setGameOver(true);
       setWinner(winner);
       if (winner === "draw") {
@@ -96,8 +97,9 @@ const GamePage = () => {
       setGameOver(false);
       setWinner(null);
     };
-    const handlePlayerLeft = ()=>{
-        navigate("/");
+
+    const handlePlayerLeft = () => {
+      navigate("/");
     };
 
     socket.on("opponentMove", handleOpponentMove);
@@ -106,15 +108,14 @@ const GamePage = () => {
     socket.on("gameStart", handleGameRestart);
     socket.on("playerLeft", handlePlayerLeft);
 
-
     return () => {
       socket.off("opponentMove", handleOpponentMove);
       socket.off("gameOver", handleGameOver);
       socket.off("opponentLeft", handleOpponentLeft);
       socket.off("gameStart", handleGameRestart);
-      socket.on("playerLeft", handlePlayerLeft);
+      socket.off("playerLeft", handlePlayerLeft);
     };
-  }, [socket]);
+  }, [socket, roomCode]); // ✅ FIXED: No board in dependencies
 
   const handleCellClick = (index) => {
     if (!isMyTurn || board[index] || gameOver) return;
@@ -132,7 +133,6 @@ const GamePage = () => {
       board: newBoard,
     });
 
-    // Optional local-side check (in case latency exists)
     const localWinner = checkLocalWinner(newBoard);
     if (localWinner) {
       setGameOver(true);
@@ -173,7 +173,7 @@ const GamePage = () => {
         You: {yourName} ({yourSymbol}) vs {opponentName}
       </h2>
       <p className="text-md">{status}</p>
-      <div className="grid grid-cols-3 gap-2 w-64 h-64">
+      <div className="grid text-blue-800 grid-cols-3 gap-2 w-64 h-64">
         {Array.from({ length: 9 }).map((_, index) => renderCell(index))}
       </div>
 

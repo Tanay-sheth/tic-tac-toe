@@ -1,6 +1,8 @@
 import { Server } from "socket.io";
 import http from "http";
 import express from "express";
+import mongoose from "mongoose";
+import Game from "../models/game.model.js"; // Import the Game model
 
 const app = express();
 const server = http.createServer(app);
@@ -13,10 +15,12 @@ const io = new Server(server, {
   },
 });
 
-const roomPlayers = new Map(); // roomCode => [player1, player2]
-const roomReadyCount = new Map(); // roomCode => number of players ready
+// Track players and readiness
+const roomPlayers = new Map();
+const roomReadyCount = new Map();
+// Track moves for each room
+const roomMoves = new Map();
 
-// ✅ Check winner helper
 const checkWinner = (board) => {
   const lines = [
     [0, 1, 2],
@@ -53,8 +57,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("joinRoom", ({ roomCode, userId, userName }) => {
-    console.log("➡️ User attempting to join room:", roomCode, userName);
-
     if (!roomCode || typeof roomCode !== "string") {
       socket.emit("joinRoomError", "Invalid room ID");
       return;
@@ -86,69 +88,107 @@ io.on("connection", (socket) => {
     roomReadyCount.set(roomCode, count + 1);
 
     if (count + 1 === 2) {
-      const [player1, player2] = roomPlayers.get(roomCode);
-      console.log("🎮 Both players ready in room:", roomCode);
-
-      io.to(player1.socketId).emit("gameStart", {
+      const [p1, p2] = roomPlayers.get(roomCode);
+      io.to(p1.socketId).emit("gameStart", {
         yourSymbol: "X",
-        yourName: player1.userName,
-        opponentName: player2.userName,
-        opponentId: player2.userId,
+        yourName: p1.userName,
+        opponentName: p2.userName,
+        opponentId: p2.userId,
         isFirstTurn: true,
         roomCode,
       });
-
-      io.to(player2.socketId).emit("gameStart", {
+      io.to(p2.socketId).emit("gameStart", {
         yourSymbol: "O",
-        yourName: player2.userName,
-        opponentName: player1.userName,
-        opponentId: player1.userId,
+        yourName: p2.userName,
+        opponentName: p1.userName,
+        opponentId: p1.userId,
         isFirstTurn: false,
         roomCode,
       });
-
       roomReadyCount.delete(roomCode);
     }
+    // Reset moves for new game
+    roomMoves.set(roomCode, []);
   });
 
-  socket.on("makeMove", ({ roomCode, index, symbol, board }) => {
-    console.log("📩 Move received:", roomCode, index, symbol);
+  socket.on("makeMove", async ({ roomCode, index, symbol }) => {
+    // Track the move
+    const players = roomPlayers.get(roomCode);
+    if (!players || players.length !== 2) return;
+    // Find the userId for this socket
+    const player = players.find((p) => p.socketId === socket.id);
+    if (!player) return;
+    // Add move to roomMoves
+    if (!roomMoves.has(roomCode)) roomMoves.set(roomCode, []);
+    roomMoves.get(roomCode).push({ index, symbol, by: player.userId });
 
-    // Send move to opponent
+    // Notify opponent
     socket.to(roomCode).emit("opponentMove", { index, symbol });
 
-    // Check winner
-    const winner = checkWinner(board);
-    if (winner) {
-      io.to(roomCode).emit("gameOver", { winner });
+    // Build board from moves
+    const movesArr = roomMoves.get(roomCode);
+    const board = Array(9).fill(null);
+    for (const move of movesArr) {
+      board[move.index] = move.symbol;
     }
+    const winnerSymbol = checkWinner(board);
+    if (!winnerSymbol) return;
+
+    // Find playerX/playerO by join order
+    const [pX, pO] = players;
+    const winnerId =
+      winnerSymbol === "draw"
+        ? null
+        : winnerSymbol === "X"
+        ? pX.userId
+        : pO.userId;
+
+    // Emit game over to both
+    io.to(roomCode).emit("gameOver", {
+      winner: winnerId || "draw",
+      result: winnerSymbol,
+    });
+
+    // Save to MongoDB
+    try {
+      await Game.create({
+        playerX: pX.userId,
+        playerO: pO.userId,
+        winner: winnerId, // null if draw
+        roomCode,
+        moves: movesArr,
+        result: winnerSymbol, // 'X', 'O', or 'draw'
+      });
+      console.log("✅ Game saved");
+    } catch (err) {
+      console.error("❌ Error saving game:", err.message);
+    }
+    // Clear moves for this room (optional, or keep for rematch)
+    roomMoves.delete(roomCode);
   });
 
   socket.on("restartGame", ({ roomCode }) => {
-    console.log("🔁 Restarting game for room:", roomCode);
     const players = roomPlayers.get(roomCode);
-    if (players?.length === 2) {
-      io.to(players[0].socketId).emit("gameStart", {
-        yourSymbol: "X",
-        yourName: players[0].userName,
-        opponentName: players[1].userName,
-        opponentId: players[1].userId,
-        isFirstTurn: true,
-        roomCode,
-      });
+    if (!players || players.length !== 2) return;
 
-      io.to(players[1].socketId).emit("gameStart", {
-        yourSymbol: "O",
-        yourName: players[1].userName,
-        opponentName: players[0].userName,
-        opponentId: players[0].userId,
-        isFirstTurn: false,
-        roomCode,
-      });
-    }
-  });
-  socket.on("leaveGame", ({ roomCode }) => {
-    io.to(roomCode).emit("playerLeft");
+    io.to(players[0].socketId).emit("gameStart", {
+      yourSymbol: "X",
+      yourName: players[0].userName,
+      opponentName: players[1].userName,
+      opponentId: players[1].userId,
+      isFirstTurn: true,
+      roomCode,
+    });
+    io.to(players[1].socketId).emit("gameStart", {
+      yourSymbol: "O",
+      yourName: players[1].userName,
+      opponentName: players[0].userName,
+      opponentId: players[0].userId,
+      isFirstTurn: false,
+      roomCode,
+    });
+    // Reset moves for new game
+    roomMoves.set(roomCode, []);
   });
 });
 
