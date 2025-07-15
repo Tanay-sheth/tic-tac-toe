@@ -4,7 +4,7 @@ import { Navigate, Route, Routes } from "react-router";
 
 import HomePage from "./pages/HomePage";
 import SignUpPage from "./pages/SignUpPage";
-// import GamePage from "./pages/GamePage";
+import GamePage from "./pages/GamePage";
 import LoginPage from "./pages/LoginPage";
 import { useAuthStore } from "./store/useAuthStore.js";
 import { Loader } from "lucide-react";
@@ -44,10 +44,10 @@ const App = () => {
           path="/login"
           element={!authUser ? <LoginPage /> : <Navigate to="/" />}
         />
-        {/* <Route
+        <Route
           path="/game"
           element={authUser ? <GamePage /> : <Navigate to="/login" />}
-        /> */}
+        />
       </Routes>
 
       <Toaster />
