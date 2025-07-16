@@ -33,6 +33,9 @@ const Navbar = () => {
           <div className="flex items-center gap-2">
             {authUser && (
               <>
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent animate-gradient mr-4">
+                  Hi, {authUser.fullName} 👋
+                </h2>
                 <button className="flex gap-2 items-center" onClick={logout}>
                   <LogOut className="size-5" />
                   <span className="hidden sm:inline">Logout</span>

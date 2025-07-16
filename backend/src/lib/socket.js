@@ -190,6 +190,10 @@ io.on("connection", (socket) => {
     // Reset moves for new game
     roomMoves.set(roomCode, []);
   });
+
+  socket.on("leaveGame", ({roomCode}) => {
+    io.to(roomCode).emit("playerLeft");
+  });
 });
 
 export { io, app, server };

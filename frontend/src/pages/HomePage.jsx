@@ -16,7 +16,7 @@ const HomePage = () => {
 
     const fetchGames = async () => {
       try {
-        const res = await axiosInstance.get(`/games/${authUser._id}`);
+        const res = await axiosInstance.get(`/games/user/${authUser._id}`);
         setPastGames(res.data);
       } catch (err) {
         console.error("Failed to fetch past games:", err.message);
@@ -79,12 +79,10 @@ const HomePage = () => {
   return (
     <div className="h-screen bg-base-200 p-6 flex flex-col items-center">
       <div className="w-full max-w-md">
-        <br></br>
-        <br></br>
-        <br></br>
-        <br></br>
-        <br></br>
-        <br></br>
+        <div className="mt-24"></div>
+        <h1 className="text-center text-3xl font-bold text-gray-800 dark:text-gray-100 mb-6 tracking-tight">
+          Enter room code:
+        </h1>
         <input
           type="text"
           placeholder="Room Code"
@@ -99,39 +97,48 @@ const HomePage = () => {
 
       <div className="mt-8 w-full max-w-md">
         <h2 className="text-lg font-semibold mb-2">🕹️ Past Games</h2>
-        {pastGames.length === 0 ? (
-          <p className="text-gray-500">No games played yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {pastGames.map((game, idx) => (
-              <li
-                key={idx}
-                className="border-0 p-3 rounded bg-blue-200 flex justify-between items-center"
-              >
-                <span>
-                  <strong className="text-black">{game.opponentName}</strong>
-                </span>
-                <span
-                  className={
-                    game.result === "win"
-                      ? "text-green-600 font-bold"
-                      : game.result === "lose"
-                      ? "text-red-600 font-bold"
-                      : "text-gray-600 font-bold"
-                  }
+        <div className="bg-blue-500 rounded-lg shadow-inner max-h-64 overflow-y-auto px-4 py-2 space-y-2 border-0">
+          {pastGames.length === 0 ? (
+            <p className="text-gray-500">No games played yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {pastGames.map((game, idx) => (
+                <li
+                  key={idx}
+                  className="p-3 rounded bg-blue-100 flex justify-between items-center"
                 >
-                  {game.result === "draw"
-                    ? "DRAW"
-                    : game.result === "win"
-                    ? "WON"
-                    : game.result === "lose"
-                    ? "LOST"
-                    : game.result.toUpperCase()}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+                  <span>
+                    <strong className="text-black">{game.opponentName}</strong>
+                  </span>
+
+                  <span
+                    className={
+                      game.result === "win"
+                        ? "text-green-600 font-bold"
+                        : game.result === "lose"
+                        ? "text-red-600 font-bold"
+                        : "text-gray-600 font-bold"
+                    }
+                  >
+                    {game.result === "draw"
+                      ? "DRAW"
+                      : game.result === "win"
+                      ? "WON"
+                      : game.result === "lose"
+                      ? "LOST"
+                      : game.result.toUpperCase()}
+                  </span>
+                  <span
+                    onClick={() => navigate(`/replay/${game.gameId}`)}
+                    className="inline-block px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 cursor-pointer transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  >
+                    View
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );

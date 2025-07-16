@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import SignUpPage from "./pages/SignUpPage";
 import GamePage from "./pages/GamePage";
 import LoginPage from "./pages/LoginPage";
+import ReplayPage from "./pages/ReplayPage";
 import { useAuthStore } from "./store/useAuthStore.js";
 import { Loader } from "lucide-react";
 import { Toaster } from "react-hot-toast";
@@ -47,6 +48,10 @@ const App = () => {
         <Route
           path="/game"
           element={authUser ? <GamePage /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/replay/:gameId"
+          element={authUser ? <ReplayPage /> : <Navigate to="/login" />}
         />
       </Routes>
 
